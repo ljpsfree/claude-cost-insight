@@ -1,0 +1,268 @@
+{
+  "annotations": {"list": []},
+  "description": "Session 级下钻分析 — 逐轮费用曲线、context 构成、工具分析",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 2,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "arrow-left",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Back to Ranking",
+      "type": "link",
+      "url": "/d/session-ranking/session-ranking"
+    }
+  ],
+  "panels": [
+    {
+      "title": "Session 摘要",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false
+    },
+    {
+      "title": "总费用",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "{service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\"",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 50}]}}},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["sum"]}},
+      "transformations": [
+        {"id": "extractFields", "options": {"source": "labels", "format": "auto"}},
+        {"id": "convertFieldType", "options": {"conversions": [{"targetField": "cost_usd", "destinationType": "number"}]}},
+        {"id": "organize", "options": {"excludeByName": {}, "includeByName": {"cost_usd": true}}}
+      ]
+    },
+    {
+      "title": "API 请求数",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "none"}
+    },
+    {
+      "title": "工具调用数",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\", session_id=\"$session_id\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "none"}
+    },
+    {
+      "title": "模型",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum by (model) (count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" [$__range]))",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "none", "textMode": "name"}
+    },
+    {
+      "title": "费用分析",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+      "collapsed": false
+    },
+    {
+      "title": "逐轮费用",
+      "type": "barchart",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" | unwrap cost_usd [$__interval]))",
+          "legendFormat": "Cost",
+          "refId": "A",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "green"},
+          "unit": "currencyUSD"
+        }
+      },
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "hidden"}}
+    },
+    {
+      "title": "Context 构成 (Token 堆叠)",
+      "type": "barchart",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 16},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" | unwrap cache_read_tokens [$__interval]))",
+          "legendFormat": "Cache Read",
+          "refId": "A",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" | unwrap cache_creation_tokens [$__interval]))",
+          "legendFormat": "Cache Create",
+          "refId": "B",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" | unwrap input_tokens [$__interval]))",
+          "legendFormat": "Input",
+          "refId": "C",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\" | unwrap output_tokens [$__interval]))",
+          "legendFormat": "Output",
+          "refId": "D",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"stacking": {"mode": "normal"}},
+          "unit": "short",
+          "min": 1,
+          "custom.scaleDistribution": {"type": "log", "log": 10}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Cache Read"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
+          {"matcher": {"id": "byName", "options": "Cache Create"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "Input"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]},
+          {"matcher": {"id": "byName", "options": "Output"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
+        ]
+      },
+      "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "table", "placement": "right", "calcs": ["sum", "max"]}}
+    },
+    {
+      "title": "工具分析",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+      "collapsed": false
+    },
+    {
+      "title": "工具调用分布",
+      "type": "piechart",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 27},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum by (tool_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\", session_id=\"$session_id\" [$__range]))",
+          "legendFormat": "{{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "options": {"legend": {"displayMode": "table", "placement": "right", "values": ["value"]}, "pieType": "donut"}
+    },
+    {
+      "title": "工具返回大小趋势",
+      "type": "barchart",
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 27},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\", session_id=\"$session_id\" | unwrap tool_result_size_bytes [$__interval]))",
+          "legendFormat": "Result Size",
+          "refId": "A",
+          "queryType": "range",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"drawStyle": "bars", "fillOpacity": 60},
+          "unit": "bytes"
+        }
+      },
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "hidden"}}
+    },
+    {
+      "title": "对话内容",
+      "type": "row",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
+      "collapsed": false
+    },
+    {
+      "title": "User Prompts",
+      "type": "logs",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 36},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "{service_name=\"claude-code\"} | event_name=\"user_prompt\", session_id=\"$session_id\"",
+          "refId": "A"
+        }
+      ],
+      "options": {"showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Ascending"}
+    },
+    {
+      "title": "API Events 时间线",
+      "type": "logs",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 46},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "{service_name=\"claude-code\"} | event_name=\"api_request\", session_id=\"$session_id\"",
+          "refId": "A"
+        }
+      ],
+      "options": {"showTime": true, "showLabels": true, "showCommonLabels": false, "wrapLogMessage": false, "enableLogDetails": true, "sortOrder": "Ascending"}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["claude-code", "session", "detail"],
+  "templating": {
+    "list": [
+      {
+        "name": "session_id",
+        "type": "textbox",
+        "label": "Session ID",
+        "current": {"text": "", "value": ""},
+        "options": []
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Claude Code - Session Detail",
+  "uid": "session-detail"
+}
