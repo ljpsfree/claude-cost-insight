@@ -110,11 +110,10 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "fixed", "fixedColor": "green"},
           "unit": "currencyUSD"
         }
       },
-      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "hidden"}}
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
     },
     {
       "title": "Context 构成 (Token 堆叠)",
@@ -157,10 +156,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {"stacking": {"mode": "normal"}},
-          "unit": "short",
-          "min": 1,
-          "custom.scaleDistribution": {"type": "log", "log": 10}
+          "unit": "short"
         },
         "overrides": [
           {"matcher": {"id": "byName", "options": "Cache Read"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
@@ -169,7 +165,12 @@
           {"matcher": {"id": "byName", "options": "Output"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}
         ]
       },
-      "options": {"tooltip": {"mode": "multi"}, "legend": {"displayMode": "table", "placement": "right", "calcs": ["sum", "max"]}}
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "table", "placement": "right", "calcs": ["sum", "max"]},
+        "stacking": "normal",
+        "barWidth": 0.8
+      }
     },
     {
       "title": "工具分析",
@@ -208,11 +209,10 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {"drawStyle": "bars", "fillOpacity": 60},
           "unit": "bytes"
         }
       },
-      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "hidden"}}
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
     },
     {
       "title": "对话内容",
