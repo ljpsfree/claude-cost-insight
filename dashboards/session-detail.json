@@ -45,9 +45,23 @@
       ]
     },
     {
-      "title": "API 请求数",
+      "title": "对话轮次",
       "type": "stat",
       "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"user_prompt\", session_id=\"$session_id\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "none"}
+    },
+    {
+      "title": "API 请求数",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
         {
@@ -61,7 +75,7 @@
     {
       "title": "工具调用数",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
         {
@@ -75,7 +89,7 @@
     {
       "title": "模型",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
         {
@@ -113,7 +127,7 @@
           "unit": "currencyUSD"
         }
       },
-      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}, "xTickLabelRotation": -45, "xTickLabelSpacing": 100}
     },
     {
       "title": "Context 构成 (Token 堆叠)",
@@ -169,7 +183,9 @@
         "tooltip": {"mode": "multi"},
         "legend": {"displayMode": "table", "placement": "right", "calcs": ["sum", "max"]},
         "stacking": "normal",
-        "barWidth": 0.8
+        "barWidth": 0.8,
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
       }
     },
     {
@@ -212,7 +228,7 @@
           "unit": "bytes"
         }
       },
-      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}}
+      "options": {"tooltip": {"mode": "single"}, "legend": {"displayMode": "list", "placement": "bottom"}, "xTickLabelRotation": -45, "xTickLabelSpacing": 100}
     },
     {
       "title": "对话内容",
