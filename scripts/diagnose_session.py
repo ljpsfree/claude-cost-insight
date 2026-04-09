@@ -492,6 +492,20 @@ def render_report(session_id: str, turns: list[Turn], findings: dict[int, list[s
             out.append(f"### Turn #{i+1} \"{p}\" — {fmt_money(t.total_cost)}")
             out.append(f"**命中规则**: {', '.join(f'{r}({FINDING_DESC[r][0]})' for r in rules)}")
             out.append("")
+            # 上下文：前一回合的 prompt
+            if i > 0:
+                prev = turns[i-1].user_prompt.replace("\n", " ")[:120]
+                out.append(f"**上一回合**: \"{prev}\"")
+            # 本回合工具调用
+            if t.tool_calls:
+                out.append(f"**本回合工具调用** ({len(t.tool_calls)} 次):")
+                for tc in t.tool_calls[:8]:
+                    inp = tc.tool_input.replace("\n", " ")[:100]
+                    size = fmt_bytes(tc.result_size)
+                    out.append(f"  - `{tc.tool_name}({inp})` → {size}")
+                if len(t.tool_calls) > 8:
+                    out.append(f"  - ... 还有 {len(t.tool_calls)-8} 次")
+            out.append("")
             out.append("**证据**:")
             if "R1" in rules:
                 big = [tc for tc in t.tool_calls if tc.result_size > R1_TOOL_SIZE_BYTES]
