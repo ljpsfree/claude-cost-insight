@@ -34,7 +34,8 @@ R3_COST_MULT = 2.0
 R4_JACCARD = 0.6                    # 失败重试
 R4_WINDOW = 5
 R6_AVG_COST_PER_TURN = 1.0          # 高基线（session 级，绝对阈值）
-R7_OUTPUT_TOKENS = 5000             # 大 output 浪费
+R7_TOOL_CALLS = 20                  # 回合放大效应：N 次工具调用
+R7_CACHE_READ = 5_000_000           # 回合放大效应：cache_read 阈值
 R9_STARTUP_CACHE_CREATION = 50_000  # session 启动开销（首请求 cache_creation）
 R10_SESSION_CACHE_RATIO = 0.7       # cache 失效（session 级）
 R10_TURN_CC_MULT = 3.0              # cache 失效（回合级）：cache_creation > 均值 N 倍
@@ -235,7 +236,7 @@ FINDING_DESC = {
     "R4": ("失败重试", "与相邻 prompt 高度重复，给出更明确的方向或换思路"),
     "R5": ("模型错配", "任务复杂度低，可降级到更便宜的模型"),
     "R6": ("高基线", "session 平均每回合成本过高，整体 context 初始就重；检查 CLAUDE.md / 启用的 skill"),
-    "R7": ("大 output 浪费", "单回合 output 过大，要求模型只给结论/diff，避免冗长解释"),
+    "R7": ("回合放大效应", "长链路 agent 任务在大 context 下跑，每次工具调用都要重付 cache_read。新 session 里跑或先 /clear"),
     "R9": ("启动开销大", "session 首次 cache_creation 过大，可能加载了过多 skill/MCP/CLAUDE.md"),
     "R10": ("Cache 失效", "prefix 变动导致 cache 命中率低，把变动部分放后面"),
 }
@@ -343,9 +344,10 @@ def run_rules(turns: list[Turn]) -> tuple[dict[int, list[str]], dict[str, Any]]:
             if t.r5_savings > 0.01:  # 节省太少不报
                 findings[i].append("R5")
 
-    # R7 大 output 浪费
+    # R7 回合放大效应：N 次工具调用 × 大 context
     for i, t in enumerate(turns):
-        if t.total_output > R7_OUTPUT_TOKENS:
+        cache_read = sum(r.cache_read for r in t.api_requests)
+        if len(t.tool_calls) > R7_TOOL_CALLS and cache_read > R7_CACHE_READ:
             findings[i].append("R7")
 
     # R10 回合级 cache 失效
@@ -496,15 +498,25 @@ def render_report(session_id: str, turns: list[Turn], findings: dict[int, list[s
             if i > 0:
                 prev = turns[i-1].user_prompt.replace("\n", " ")[:120]
                 out.append(f"**上一回合**: \"{prev}\"")
-            # 本回合工具调用
+            # Token 解构
+            in_t = sum(r.input_tokens for r in t.api_requests)
+            out_t = sum(r.output_tokens for r in t.api_requests)
+            cr_t = sum(r.cache_read for r in t.api_requests)
+            cc_t = sum(r.cache_creation for r in t.api_requests)
+            tool_bytes_total = sum(tc.result_size for tc in t.tool_calls)
+            out.append(f"**Token 解构**: input={in_t:,} | output={out_t:,} | cache_read={cr_t:,} | cache_creation={cc_t:,}")
+            out.append(f"**工具结果总大小**: {fmt_bytes(tool_bytes_total)} （{len(t.tool_calls)} 次调用）")
+            # 本回合工具调用（按 result_size 倒序）
             if t.tool_calls:
-                out.append(f"**本回合工具调用** ({len(t.tool_calls)} 次):")
-                for tc in t.tool_calls[:8]:
+                sorted_tc = sorted(t.tool_calls, key=lambda x: -x.result_size)
+                out.append(f"**Top 工具调用（按返回大小）**:")
+                for tc in sorted_tc[:6]:
                     inp = tc.tool_input.replace("\n", " ")[:100]
                     size = fmt_bytes(tc.result_size)
-                    out.append(f"  - `{tc.tool_name}({inp})` → {size}")
-                if len(t.tool_calls) > 8:
-                    out.append(f"  - ... 还有 {len(t.tool_calls)-8} 次")
+                    out.append(f"  - `{tc.tool_name}({inp})` → **{size}**")
+                if len(t.tool_calls) > 6:
+                    rest_bytes = sum(tc.result_size for tc in sorted_tc[6:])
+                    out.append(f"  - ... 其余 {len(t.tool_calls)-6} 次共 {fmt_bytes(rest_bytes)}")
             out.append("")
             out.append("**证据**:")
             if "R1" in rules:
@@ -526,7 +538,10 @@ def render_report(session_id: str, turns: list[Turn], findings: dict[int, list[s
                 out.append(f"- 任务复杂度低（{len(t.tool_calls)} tools, output {t.total_output}），实际用 **{actual}**，建议用 **{rec}**")
                 out.append(f"- 本回合可省 **{fmt_money(save)}**")
             if "R7" in rules:
-                out.append(f"- output_tokens = {t.total_output:,}（阈值 {R7_OUTPUT_TOKENS}）")
+                cr = sum(r.cache_read for r in t.api_requests)
+                avg_ctx = cr // max(len(t.api_requests), 1)
+                out.append(f"- {len(t.tool_calls)} 次工具调用 × 平均 {avg_ctx:,} tokens/调用 context = {cr:,} cache_read")
+                out.append(f"- 单 cache_read 估算: {fmt_money(cr * 1.5 / 1e6)}（按 opus）")
             if "R10" in rules:
                 cc = sum(r.cache_creation for r in t.api_requests)
                 out.append(f"- 此回合 cache_creation = {cc:,}（远超均值），prefix 被打破")
